@@ -1,0 +1,8 @@
+{
+  "name": "Tablo Meets Home Assistant",
+  "render_readme": true,
+  "domains": ["tablo_remote"],
+  "iot_class": "Local Polling",
+  "homeassistant": "2023.1.0"
+}
+
