@@ -48,4 +48,5 @@ CONF_LIGHTHOUSETV_IDENTIFIER: Final = "lighthousetv_identifier"
 CONF_UUID: Final = "uuid"
 CONF_TUNERS: Final = "tuners"
 CONF_DEVICE_NAME: Final = "device_name"
+CONF_ENABLE_DEBUG: Final = "enable_debug"
 

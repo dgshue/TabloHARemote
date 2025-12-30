@@ -1,10 +1,10 @@
 """Service definitions for Tablo Meets Home Assistant."""
-import logging
 from typing import Any, Dict
 
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import HomeAssistantError
 
+from .logger import get_logger
 from .const import (
     DOMAIN,
     SERVICE_SET_CHANNEL,
@@ -14,7 +14,7 @@ from .const import (
 from .roku_helper import RokuHelper, RokuNotFoundError
 from .tablo_client import TabloClient, TabloClientError
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger("tablo_remote.services")
 
 
 def _get_config_entry(hass: HomeAssistant):
@@ -31,12 +31,21 @@ def async_setup_services(hass: HomeAssistant) -> None:
 
     async def set_channel_service(call: ServiceCall) -> None:
         """Service to set channel on Tablo device."""
+        _LOGGER.info("set_channel service called")
         channel_id = call.data.get("channel_id")
         channel_number = call.data.get("channel_number")
         roku_entity_id = call.data.get("roku_entity_id")
 
+        _LOGGER.debug(
+            "Service parameters: channel_id=%s, channel_number=%s, roku_entity_id=%s",
+            channel_id,
+            channel_number,
+            roku_entity_id,
+        )
+
         # Get the config entry
         entry = _get_config_entry(hass)
+        _LOGGER.debug("Using config entry: %s", entry.entry_id)
 
         # Build credentials from config entry
         credentials = {
@@ -50,26 +59,41 @@ def async_setup_services(hass: HomeAssistant) -> None:
 
         # If channel_number is provided, look up channel_id
         if channel_number and not channel_id:
+            _LOGGER.debug("Looking up channel_id for channel_number: %s", channel_number)
             try:
                 channels = await client.get_channels()
+                _LOGGER.debug("Retrieved %d channels for lookup", len(channels))
                 # Find channel by number (format: major.minor)
                 for channel in channels:
                     if channel.get("kind") == "ota":
                         chan_num = f'{channel["ota"]["major"]}.{channel["ota"]["minor"]}'
                         if chan_num == channel_number:
                             channel_id = channel["identifier"]
+                            _LOGGER.debug(
+                                "Found channel_id %s for channel_number %s",
+                                channel_id,
+                                channel_number,
+                            )
                             break
                     elif channel.get("kind") == "ott":
                         chan_num = f'{channel["ott"]["major"]}.{channel["ott"]["minor"]}'
                         if chan_num == channel_number:
                             channel_id = channel["identifier"]
+                            _LOGGER.debug(
+                                "Found channel_id %s for channel_number %s",
+                                channel_id,
+                                channel_number,
+                            )
                             break
                 if not channel_id:
+                    _LOGGER.error("Channel number %s not found in channel lineup", channel_number)
                     raise HomeAssistantError(f"Channel {channel_number} not found")
             except TabloClientError as err:
+                _LOGGER.error("Failed to get channels: %s", err)
                 raise HomeAssistantError(f"Failed to get channels: {err}") from err
 
         if not channel_id:
+            _LOGGER.error("Neither channel_id nor channel_number provided")
             raise HomeAssistantError("channel_id or channel_number required")
 
         # Launch Tablo app on Roku if entity_id provided
@@ -85,15 +109,19 @@ def async_setup_services(hass: HomeAssistant) -> None:
 
         # Set channel on Tablo device
         try:
+            _LOGGER.debug("Calling watch_channel for channel_id: %s", channel_id)
             await client.watch_channel(channel_id)
-            _LOGGER.info(f"Successfully set channel {channel_id}")
+            _LOGGER.info("Successfully set channel: %s", channel_id)
         except TabloClientError as err:
+            _LOGGER.error("Failed to set channel %s: %s", channel_id, err)
             raise HomeAssistantError(f"Failed to set channel: {err}") from err
 
     async def get_channels_service(call: ServiceCall) -> None:
         """Service to get available channels."""
+        _LOGGER.info("get_channels service called")
         # Get the config entry
         entry = _get_config_entry(hass)
+        _LOGGER.debug("Using config entry: %s", entry.entry_id)
 
         # Build credentials from config entry
         credentials = {
@@ -104,8 +132,10 @@ def async_setup_services(hass: HomeAssistant) -> None:
         }
 
         client = TabloClient(credentials)
+        _LOGGER.debug("TabloClient created for get_channels")
 
         try:
+            _LOGGER.debug("Fetching channels from Tablo device")
             channels = await client.get_channels()
             # Format channels and log them
             result = []
@@ -130,8 +160,10 @@ def async_setup_services(hass: HomeAssistant) -> None:
                             "call_sign": channel["ott"].get("callSign", ""),
                         }
                     )
-            _LOGGER.info("Available channels: %s", result)
+            _LOGGER.info("Retrieved %d available channels", len(result))
+            _LOGGER.debug("Available channels: %s", result)
         except TabloClientError as err:
+            _LOGGER.error("Failed to get channels: %s", err)
             raise HomeAssistantError(f"Failed to get channels: {err}") from err
 
     async def stop_streaming_service(call: ServiceCall) -> None:
