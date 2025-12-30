@@ -59,9 +59,8 @@ async def validate_auth(hass: HomeAssistant, username: str, password: str) -> Di
     except TabloAuthenticationError as err:
         _LOGGER.error("Authentication validation failed: %s", err)
         raise InvalidAuth from err
-    except TabloConnectionError as err:
-        _LOGGER.error("Connection error during authentication: %s", err)
-        raise CannotConnect from err
+    # Note: TabloConnectionError is no longer raised during authentication
+    # since device verification is now optional
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -133,9 +132,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     title=f"Tablo {device.get('name', 'Device')}",
                     data=config_data,
                 )
-            except CannotConnect as err:
-                _LOGGER.error("Cannot connect error in config flow: %s", err)
-                errors["base"] = "cannot_connect"
             except InvalidAuth as err:
                 _LOGGER.error("Invalid auth error in config flow: %s", err)
                 errors["base"] = "invalid_auth"

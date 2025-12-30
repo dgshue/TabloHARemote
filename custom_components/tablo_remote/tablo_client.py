@@ -8,7 +8,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import aiohttp
-from aiohttp import ClientSession, ClientTimeout
+from aiohttp import ClientSession, ClientTimeout, TCPConnector
+from urllib.parse import urljoin
 
 from .logger import get_logger, is_debug_enabled, log_sensitive_data
 from .const import (
@@ -104,7 +105,7 @@ class TabloClient:
         body: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Make authenticated request to local device."""
-        url = f"{self.device_url}{path}"
+        url = urljoin(self.device_url.rstrip('/') + '/', path.lstrip('/'))
         date = self._get_device_date()
 
         _LOGGER.debug("Making %s request to device: %s", method, url)
@@ -139,8 +140,8 @@ class TabloClient:
             if isinstance(body, dict):
                 device_body.update(body)
             body_str = json.dumps(device_body)
-            # Note: Source code uses form-urlencoded but sends JSON. Using JSON for correctness.
-            headers["Content-Type"] = CONTENT_TYPE_JSON
+            # Note: tablo2plex uses form-urlencoded content type (even though body is JSON)
+            headers["Content-Type"] = CONTENT_TYPE_FORM
             headers["Content-Length"] = str(len(body_str))
             if is_debug_enabled():
                 _LOGGER.debug("Request body: %s", log_sensitive_data(device_body))
@@ -318,40 +319,43 @@ class TabloClient:
             device_uuid = str(uuid.uuid4())
             _LOGGER.debug("Generated device UUID: %s", device_uuid)
 
-            # Step 5: Verify device connection
-            _LOGGER.debug("Step 5: Verifying connection to local device")
+            # Step 5: Optionally verify device connection (skip if unreachable)
+            _LOGGER.debug("Step 5: Optionally verifying connection to local device")
             device_url = device.get("url", "")
             if not device_url:
-                _LOGGER.error("Device URL not found in device info")
-                raise TabloAuthenticationError("Device URL not found")
+                _LOGGER.warning("Device URL not found in device info, using default tuner count")
+                tuners = 2  # Default tuner count
+                device_model = device.get("name", "Unknown")
+            else:
+                # Try to verify device connection, but don't fail setup if it doesn't work
+                temp_credentials = {
+                    "device": device,
+                    "uuid": device_uuid,
+                    "lighthouse": lighthouse,
+                    "lighthousetv_authorization": authorization,
+                    "lighthousetv_identifier": account_response.get("identifier", ""),
+                }
+                temp_client = TabloClient(temp_credentials)
 
-            # Create temporary client to verify device
-            temp_credentials = {
-                "device": device,
-                "uuid": device_uuid,
-                "lighthouse": lighthouse,
-                "lighthousetv_authorization": authorization,
-                "lighthousetv_identifier": account_response.get("identifier", ""),
-            }
-            temp_client = TabloClient(temp_credentials)
-
-            try:
-                _LOGGER.debug("Connecting to device at %s", device_url)
-                server_info = await temp_client.get_server_info()
-                _LOGGER.debug("Device connection successful, server info received")
-            except TabloConnectionError as err:
-                _LOGGER.error("Could not connect to device at %s: %s", device_url, err)
-                raise TabloConnectionError(
-                    f"Could not connect to device at {device_url}: {err}"
-                ) from err
-
-            tuners = server_info.get("model", {}).get("tuners", 2)
-            device_model = server_info.get("model", {}).get("name", "Unknown")
-            _LOGGER.info(
-                "Device verified: %s with %d tuner(s)",
-                device_model,
-                tuners,
-            )
+                try:
+                    _LOGGER.debug("Attempting to connect to device at %s (optional verification)", device_url)
+                    server_info = await temp_client.get_server_info()
+                    tuners = server_info.get("model", {}).get("tuners", 2)
+                    device_model = server_info.get("model", {}).get("name", "Unknown")
+                    _LOGGER.info(
+                        "Device verified: %s with %d tuner(s)",
+                        device_model,
+                        tuners,
+                    )
+                except TabloConnectionError as err:
+                    _LOGGER.warning(
+                        "Could not connect to device at %s during setup (this is OK): %s. "
+                        "Using default tuner count (2). Device connection will be attempted when needed.",
+                        device_url,
+                        err
+                    )
+                    tuners = 2  # Default tuner count (matches tablo2plex default)
+                    device_model = device.get("name", "Unknown")
 
             # Return complete credentials
             _LOGGER.info("Authentication completed successfully")
@@ -413,7 +417,9 @@ class TabloClient:
     async def get_server_info(self) -> Dict[str, Any]:
         """Get server information from local device."""
         _LOGGER.debug("Getting server info from device")
-        async with ClientSession() as session:
+        connector = TCPConnector(ssl=False)  # Explicitly disable SSL for HTTP device connections
+        timeout = ClientTimeout(total=DEFAULT_REQUEST_TIMEOUT)
+        async with ClientSession(connector=connector, timeout=timeout) as session:
             return await self._request_device(session, "GET", SERVER_INFO_PATH)
 
     async def get_channels(self) -> List[Dict[str, Any]]:
@@ -438,7 +444,9 @@ class TabloClient:
         _LOGGER.info("Setting channel on device: %s", channel_id)
         path = WATCH_CHANNEL_PATH.format(channel_id=channel_id)
 
-        async with ClientSession() as session:
+        connector = TCPConnector(ssl=False)  # Explicitly disable SSL for HTTP device connections
+        timeout = ClientTimeout(total=DEFAULT_REQUEST_TIMEOUT)
+        async with ClientSession(connector=connector, timeout=timeout) as session:
             result = await self._request_device(session, "POST", path, body={})
             _LOGGER.info("Channel watch request completed for channel: %s", channel_id)
             return result
