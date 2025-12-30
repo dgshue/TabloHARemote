@@ -315,49 +315,22 @@ class TabloClient:
                 raise TabloAuthenticationError("Failed to get Lighthouse token")
 
             _LOGGER.info("Lighthouse token obtained")
+            
             # Step 4: Generate UUID
             device_uuid = str(uuid.uuid4())
             _LOGGER.debug("Generated device UUID: %s", device_uuid)
 
-            # Step 5: Optionally verify device connection (skip if unreachable)
-            _LOGGER.debug("Step 5: Optionally verifying connection to local device")
+            # Note: Device verification is NOT performed during authentication.
+            # This matches tablo2plex behavior where device connection is only attempted
+            # when actually needed (e.g., when setting a channel).
+            # The device URL comes directly from the cloud API response.
             device_url = device.get("url", "")
             if not device_url:
-                _LOGGER.warning("Device URL not found in device info, using default tuner count")
-                tuners = 2  # Default tuner count
-                device_model = device.get("name", "Unknown")
+                _LOGGER.warning("Device URL not found in device info from cloud API")
             else:
-                # Try to verify device connection, but don't fail setup if it doesn't work
-                temp_credentials = {
-                    "device": device,
-                    "uuid": device_uuid,
-                    "lighthouse": lighthouse,
-                    "lighthousetv_authorization": authorization,
-                    "lighthousetv_identifier": account_response.get("identifier", ""),
-                }
-                temp_client = TabloClient(temp_credentials)
-
-                try:
-                    _LOGGER.debug("Attempting to connect to device at %s (optional verification)", device_url)
-                    server_info = await temp_client.get_server_info()
-                    tuners = server_info.get("model", {}).get("tuners", 2)
-                    device_model = server_info.get("model", {}).get("name", "Unknown")
-                    _LOGGER.info(
-                        "Device verified: %s with %d tuner(s)",
-                        device_model,
-                        tuners,
-                    )
-                except TabloConnectionError as err:
-                    _LOGGER.warning(
-                        "Could not connect to device at %s during setup (this is OK): %s. "
-                        "Using default tuner count (2). Device connection will be attempted when needed.",
-                        device_url,
-                        err
-                    )
-                    tuners = 2  # Default tuner count (matches tablo2plex default)
-                    device_model = device.get("name", "Unknown")
-
-            # Return complete credentials
+                _LOGGER.info("Device URL from cloud API: %s", device_url)
+            
+            # Return complete credentials (device connection will be verified when needed)
             _LOGGER.info("Authentication completed successfully")
             credentials = {
                 "lighthousetv_authorization": authorization,
@@ -366,7 +339,7 @@ class TabloClient:
                 "device": device,
                 "lighthouse": lighthouse,
                 "uuid": device_uuid,
-                "tuners": tuners,
+                "tuners": 2,  # Default tuner count (will be updated when device is accessed)
             }
             if is_debug_enabled():
                 _LOGGER.debug("Credentials structure: %s", log_sensitive_data(credentials))
@@ -416,7 +389,9 @@ class TabloClient:
 
     async def get_server_info(self) -> Dict[str, Any]:
         """Get server information from local device."""
-        _LOGGER.debug("Getting server info from device")
+        _LOGGER.debug("Getting server info from device at %s", self.device_url)
+        if not self.device_url:
+            raise TabloConnectionError("Device URL not configured")
         connector = TCPConnector(ssl=False)  # Explicitly disable SSL for HTTP device connections
         timeout = ClientTimeout(total=DEFAULT_REQUEST_TIMEOUT)
         async with ClientSession(connector=connector, timeout=timeout) as session:
