@@ -1,5 +1,5 @@
 # Reference source code (not part of integration)
-src/
+tablo2plex/
 
 # Python
 __pycache__/
