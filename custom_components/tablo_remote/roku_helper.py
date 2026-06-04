@@ -24,7 +24,12 @@ class RokuHelper:
         self.hass = hass
 
     async def find_roku_device(self, entity_id: str) -> Optional[str]:
-        """Find Roku device entity by entity_id."""
+        """Validate the targeted Roku media_player entity by entity_id.
+
+        The caller explicitly chooses which Roku to use, so we only verify the
+        entity exists and is a media_player — we do NOT require "roku" in the
+        name (Roku TVs are often named e.g. media_player.living_room_tv).
+        """
         _LOGGER.debug("Looking for Roku device: %s", entity_id)
         # Check if entity exists in the state machine
         state = self.hass.states.get(entity_id)
@@ -37,13 +42,8 @@ class RokuHelper:
             _LOGGER.warning("Entity %s is not a media_player entity", entity_id)
             return None
 
-        # Check if it's a Roku device (entity_id typically starts with media_player.roku_)
-        if "roku" in entity_id.lower():
-            _LOGGER.debug("Found Roku device: %s", entity_id)
-            return entity_id
-
-        _LOGGER.debug("Entity %s does not appear to be a Roku device", entity_id)
-        return None
+        _LOGGER.debug("Using Roku target: %s", entity_id)
+        return entity_id
 
     async def power_on(self, entity_id: str, settle_seconds: int = 3) -> bool:
         """Power on the Roku (and the TV via HDMI-CEC). Best-effort."""
