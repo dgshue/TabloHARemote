@@ -63,51 +63,49 @@ class RokuHelper:
             _LOGGER.warning("Failed to power on %s: %s", entity_id, err)
             return False
 
+    def _find_tablo_source(self, entity_id: str) -> Optional[str]:
+        """Find the Tablo app's name in a Roku's installed-app (source) list."""
+        state = self.hass.states.get(entity_id)
+        source_list = (state.attributes.get("source_list") or []) if state else []
+        # The app is named "Tablo" or "Tablo TV" depending on the device.
+        return next((s for s in source_list if "tablo" in s.lower()), None)
+
     async def launch_tablo_app(self, entity_id: str) -> bool:
-        """Launch Tablo app on Roku device."""
+        """Launch the Tablo app on a Roku via media_player.select_source.
+
+        The app name is discovered from the device's own source_list (e.g.
+        "Tablo TV"), so there is no dependency on a hardcoded app id. Modern
+        HA's Roku integration launches apps via select_source, not a
+        roku.launch_app service.
+        """
         _LOGGER.info("Launching Tablo app on Roku device: %s", entity_id)
-        # First verify the device exists
         device_entity = await self.find_roku_device(entity_id)
         if not device_entity:
             _LOGGER.error("Roku device %s not found", entity_id)
             raise RokuNotFoundError(f"Roku device {entity_id} not found")
 
-        # Try to use Roku's launch_app service
-        # Tablo app ID on Roku needs to be determined, using common pattern
-        # The app ID is typically a numeric string
-        # We'll use a placeholder that needs to be configured or discovered
-        tablo_app_id = "41972"  # This needs to be verified/configured
-        _LOGGER.debug("Using Tablo app ID: %s", tablo_app_id)
+        tablo_source = self._find_tablo_source(entity_id)
+        if not tablo_source:
+            tablo_source = "Tablo TV"  # sensible default if app list unavailable
+            _LOGGER.debug(
+                "No Tablo app found in %s source_list; defaulting to '%s'",
+                entity_id, tablo_source,
+            )
 
         try:
-            # Use Roku's launch_app service
-            _LOGGER.debug("Calling roku.launch_app service")
             await self.hass.services.async_call(
-                "roku",
-                "launch_app",
-                {"entity_id": entity_id, "app_id": tablo_app_id},
+                "media_player",
+                "select_source",
+                {"entity_id": entity_id, "source": tablo_source},
                 blocking=True,
             )
-            _LOGGER.info("Successfully launched Tablo app on %s", entity_id)
+            _LOGGER.info("Launched '%s' on %s", tablo_source, entity_id)
             return True
-        except Exception as err:
-            _LOGGER.warning("Failed to launch app using roku.launch_app, trying fallback: %s", err)
-            # Fallback: try using media_player.select_source
-            try:
-                _LOGGER.debug("Trying fallback: media_player.select_source")
-                await self.hass.services.async_call(
-                    "media_player",
-                    "select_source",
-                    {"entity_id": entity_id, "source": "Tablo"},
-                    blocking=True,
-                )
-                _LOGGER.info("Successfully launched Tablo app using fallback method on %s", entity_id)
-                return True
-            except Exception as fallback_err:
-                _LOGGER.error("Failed to launch Tablo app on %s: %s (fallback also failed: %s)", entity_id, err, fallback_err)
-                raise HomeAssistantError(
-                    f"Failed to launch Tablo app on {entity_id}: {err}"
-                ) from err
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.error("Failed to launch Tablo app on %s: %s", entity_id, err)
+            raise HomeAssistantError(
+                f"Failed to launch Tablo app on {entity_id}: {err}"
+            ) from err
 
     async def wait_for_app_ready(self, entity_id: str, timeout: int = 10) -> bool:
         """Wait for Roku app to be ready (simplified implementation)."""
