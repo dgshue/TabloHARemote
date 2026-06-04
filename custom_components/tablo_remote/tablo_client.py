@@ -161,8 +161,19 @@ class TabloClient:
                 method, url, headers=headers, data=body_str if body_str else None, timeout=timeout
             ) as response:
                 _LOGGER.debug("Device response status: %s", response.status)
-                response.raise_for_status()
-                result = await response.json()
+                try:
+                    result = await response.json(content_type=None)
+                except (aiohttp.ContentTypeError, json.JSONDecodeError, ValueError):
+                    result = None
+                if response.status < 200 or response.status >= 300:
+                    detail = ""
+                    if isinstance(result, dict):
+                        detail = result.get("message") or result.get("code") or ""
+                    msg = f"{response.status} {response.reason}"
+                    if detail:
+                        msg = f"{msg}: {detail}"
+                    _LOGGER.error("Device request failed: %s - %s", url, msg)
+                    raise TabloConnectionError(f"Device request failed: {msg}")
                 if is_debug_enabled():
                     _LOGGER.debug("Device response: %s", log_sensitive_data(result))
                 return result
@@ -211,8 +222,19 @@ class TabloClient:
                 method, url, headers=request_headers, data=body, timeout=timeout
             ) as response:
                 _LOGGER.debug("Cloud API response status: %s", response.status)
-                response.raise_for_status()
-                result = await response.json()
+                try:
+                    result = await response.json(content_type=None)
+                except (aiohttp.ContentTypeError, json.JSONDecodeError, ValueError):
+                    result = None
+                if response.status < 200 or response.status >= 300:
+                    detail = ""
+                    if isinstance(result, dict):
+                        detail = result.get("message") or result.get("code") or ""
+                    msg = f"{response.status} {response.reason}"
+                    if detail:
+                        msg = f"{msg}: {detail}"
+                    _LOGGER.error("Cloud API request failed: %s - %s", url, msg)
+                    raise TabloConnectionError(f"Cloud API request failed: {msg}")
                 if is_debug_enabled():
                     _LOGGER.debug("Cloud API response: %s", log_sensitive_data(result))
                 return result
@@ -380,8 +402,22 @@ class TabloClient:
             ) as response:
                 if is_debug_enabled():
                     _LOGGER.debug("Response status: %s", response.status)
-                response.raise_for_status()
-                result = await response.json()
+                # Read the body before raising so we can surface the API's own
+                # error message (e.g. "Ensure this field has at least 8
+                # characters") instead of a generic "400 Bad Request".
+                try:
+                    result = await response.json(content_type=None)
+                except (aiohttp.ContentTypeError, json.JSONDecodeError, ValueError):
+                    result = None
+                if response.status < 200 or response.status >= 300:
+                    detail = ""
+                    if isinstance(result, dict):
+                        detail = result.get("message") or result.get("code") or ""
+                    msg = f"{response.status} {response.reason}"
+                    if detail:
+                        msg = f"{msg}: {detail}"
+                    _LOGGER.error("Cloud API request failed: %s - %s", url, msg)
+                    raise TabloConnectionError(f"Cloud API request failed: {msg}")
                 return result
         except aiohttp.ClientError as err:
             _LOGGER.error("Cloud API request failed: %s - %s", url, err)

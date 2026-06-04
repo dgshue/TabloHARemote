@@ -16,6 +16,12 @@ ENV/
 *.log
 .homeassistant/
 
+# Secrets / local config
+.env
+.env.local
+*.local
+secrets.yaml
+
 # IDE
 .vscode/
 .idea/

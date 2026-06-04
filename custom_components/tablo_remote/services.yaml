@@ -1,0 +1,36 @@
+set_channel:
+  name: Set channel
+  description: >-
+    Set a channel on the Tablo device and optionally launch the Tablo app on a
+    Roku device. Either channel_id or channel_number must be provided.
+  fields:
+    channel_id:
+      name: Channel ID
+      description: The channel identifier (e.g. "S122912_503_01").
+      required: false
+      example: "S122912_503_01"
+      selector:
+        text:
+    channel_number:
+      name: Channel number
+      description: The channel number in major.minor format (e.g. "2.1").
+      required: false
+      example: "2.1"
+      selector:
+        text:
+    roku_entity_id:
+      name: Roku entity
+      description: The media_player entity of the Roku to launch the Tablo app on.
+      required: false
+      example: media_player.roku_living_room
+      selector:
+        entity:
+          domain: media_player
+
+get_channels:
+  name: Get channels
+  description: Fetch the list of available channels from the Tablo account.
+
+stop_streaming:
+  name: Stop streaming
+  description: Stop the current stream (placeholder, not yet implemented).
