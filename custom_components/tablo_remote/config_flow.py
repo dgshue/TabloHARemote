@@ -8,6 +8,7 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import selector
 
 from .logger import get_logger
 from .const import (
@@ -24,6 +25,7 @@ from .const import (
     CONF_TUNERS,
     CONF_DEVICE_NAME,
     CONF_ENABLE_DEBUG,
+    CONF_ROKU_ENTITY,
 )
 from .tablo_client import TabloClient, TabloAuthenticationError, TabloConnectionError
 
@@ -163,14 +165,28 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             set_debug(user_input.get(CONF_ENABLE_DEBUG, False))
             return self.async_create_entry(title="", data=user_input)
 
+        options = self.config_entry.options
+        schema = {
+            vol.Optional(
+                CONF_ENABLE_DEBUG,
+                default=options.get(CONF_ENABLE_DEBUG, False),
+            ): bool,
+        }
+        # Optional Roku to launch the Tablo app on when changing channels.
+        roku_default = options.get(CONF_ROKU_ENTITY)
+        roku_selector = selector.EntitySelector(
+            selector.EntitySelectorConfig(domain="media_player")
+        )
+        if roku_default:
+            schema[
+                vol.Optional(CONF_ROKU_ENTITY, default=roku_default)
+            ] = roku_selector
+        else:
+            schema[vol.Optional(CONF_ROKU_ENTITY)] = roku_selector
+
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema({
-                vol.Optional(
-                    CONF_ENABLE_DEBUG,
-                    default=self.config_entry.options.get(CONF_ENABLE_DEBUG, False),
-                ): bool,
-            }),
+            data_schema=vol.Schema(schema),
         )
 
 

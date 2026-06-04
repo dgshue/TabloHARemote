@@ -37,6 +37,17 @@
       "already_configured": "This Tablo device is already configured",
       "no_devices": "No Tablo devices found for this account"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tablo Options",
+        "data": {
+          "enable_debug": "Enable debug logging",
+          "roku_entity_id": "Roku to launch the Tablo app on (optional)"
+        }
+      }
+    }
   }
 }
 
