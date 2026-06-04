@@ -1,14 +1,13 @@
 {
   "domain": "tablo_remote",
   "name": "Tablo Meets Home Assistant",
-  "version": "0.0.9",
-  "documentation": "https://github.com/dgshue/TabloHARemote",
-  "issue_tracker": "https://github.com/dgshue/TabloHARemote/issues",
   "codeowners": ["@dgshue"],
   "config_flow": true,
   "dependencies": [],
-  "requirements": ["aiohttp>=3.8.0"],
+  "documentation": "https://github.com/dgshue/TabloHARemote",
+  "integration_type": "hub",
   "iot_class": "local_polling",
-  "integration_type": "hub"
+  "issue_tracker": "https://github.com/dgshue/TabloHARemote/issues",
+  "requirements": ["aiohttp>=3.8.0"],
+  "version": "0.0.10"
 }
-
