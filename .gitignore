@@ -25,6 +25,7 @@ secrets.yaml
 # IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 *~
@@ -33,6 +34,6 @@ secrets.yaml
 .DS_Store
 Thumbs.db
 
-
+# AI assistants
 .claude/
 
