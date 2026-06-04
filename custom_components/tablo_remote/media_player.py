@@ -22,7 +22,6 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import TabloCoordinator
-from .roku_helper import RokuHelper
 
 _LOGGER = get_logger("tablo_remote.media_player")
 
@@ -84,13 +83,11 @@ class TabloMediaPlayer(CoordinatorEntity[TabloCoordinator], MediaPlayerEntity):
             _LOGGER.error("Unknown source selected: %s", source)
             return
 
+        # When a default Roku is configured, power it on + launch the app too.
         roku_entity = self._entry.options.get(CONF_ROKU_ENTITY)
-        if roku_entity:
-            roku = RokuHelper(self.hass)
-            try:
-                await roku.launch_tablo_app(roku_entity)
-                await roku.wait_for_app_ready(roku_entity)
-            except Exception as err:  # noqa: BLE001 - Roku is best-effort
-                _LOGGER.warning("Failed to launch Tablo app on Roku: %s", err)
-
-        await self.coordinator.async_set_channel(channel)
+        await self.coordinator.async_watch(
+            channel,
+            roku_entity_id=roku_entity,
+            turn_on=bool(roku_entity),
+            launch_app=bool(roku_entity),
+        )

@@ -1,4 +1,5 @@
 """Helper functions for integrating with Roku devices."""
+import asyncio
 from typing import Optional
 
 from homeassistant.core import HomeAssistant
@@ -43,6 +44,24 @@ class RokuHelper:
 
         _LOGGER.debug("Entity %s does not appear to be a Roku device", entity_id)
         return None
+
+    async def power_on(self, entity_id: str, settle_seconds: int = 3) -> bool:
+        """Power on the Roku (and the TV via HDMI-CEC). Best-effort."""
+        _LOGGER.info("Powering on Roku device: %s", entity_id)
+        try:
+            await self.hass.services.async_call(
+                "media_player",
+                "turn_on",
+                {"entity_id": entity_id},
+                blocking=True,
+            )
+            # Give the Roku/TV a moment to wake before launching an app.
+            await asyncio.sleep(settle_seconds)
+            _LOGGER.debug("Power-on completed for %s", entity_id)
+            return True
+        except Exception as err:  # noqa: BLE001 - best-effort
+            _LOGGER.warning("Failed to power on %s: %s", entity_id, err)
+            return False
 
     async def launch_tablo_app(self, entity_id: str) -> bool:
         """Launch Tablo app on Roku device."""
@@ -96,8 +115,6 @@ class RokuHelper:
         # This is a simplified implementation
         # In practice, you might want to check the media_player state
         # to verify the app has launched
-        import asyncio
-
         try:
             await asyncio.sleep(2)  # Give the app time to launch
             _LOGGER.debug("App ready check completed for %s", entity_id)

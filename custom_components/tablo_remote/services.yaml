@@ -1,8 +1,9 @@
 set_channel:
   name: Set channel
   description: >-
-    Set a channel on the Tablo device and optionally launch the Tablo app on a
-    Roku device. Either channel_id or channel_number must be provided.
+    Tune the Tablo to a channel. If a Roku is given, it can also power on the
+    Roku/TV and launch the Tablo app first — getting you from a cold TV to
+    watching in one call. Either channel_id or channel_number must be provided.
   fields:
     channel_id:
       name: Channel ID
@@ -20,12 +21,33 @@ set_channel:
         text:
     roku_entity_id:
       name: Roku entity
-      description: The media_player entity of the Roku to launch the Tablo app on.
+      description: >-
+        The media_player entity of the Roku to send this channel to. With
+        multiple Rokus, call set_channel once per Roku to put a different
+        channel on each. Overrides the Roku set in the integration options.
       required: false
       example: media_player.roku_living_room
       selector:
         entity:
           domain: media_player
+    turn_on:
+      name: Turn on TV
+      description: >-
+        Power on the Roku (and the TV via HDMI-CEC) before tuning. Only applies
+        when a Roku is targeted. Defaults to true.
+      required: false
+      default: true
+      selector:
+        boolean:
+    launch_app:
+      name: Launch Tablo app
+      description: >-
+        Launch the Tablo app on the Roku before tuning. Only applies when a
+        Roku is targeted. Defaults to true.
+      required: false
+      default: true
+      selector:
+        boolean:
 
 get_channels:
   name: Get channels

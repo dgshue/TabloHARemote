@@ -19,7 +19,6 @@ from .const import (
     SERVICE_STOP_STREAMING,
 )
 from .coordinator import TabloCoordinator
-from .roku_helper import RokuHelper, RokuNotFoundError
 from .tablo_client import TabloClientError
 
 _LOGGER = get_logger("tablo_remote.services")
@@ -60,22 +59,21 @@ def async_setup_services(hass: HomeAssistant) -> None:
             _LOGGER.error("Channel %s not found in channel lineup", target)
             raise HomeAssistantError(f"Channel {target} not found")
 
-        # Launch Tablo app on Roku if requested (call arg overrides the option).
+        # Resolve the Roku target (call arg overrides the configured option).
         roku_entity_id = roku_entity_id or coordinator.entry.options.get(
             CONF_ROKU_ENTITY
         )
-        if roku_entity_id:
-            roku_helper = RokuHelper(hass)
-            try:
-                await roku_helper.launch_tablo_app(roku_entity_id)
-                await roku_helper.wait_for_app_ready(roku_entity_id)
-            except RokuNotFoundError as err:
-                _LOGGER.warning("Roku device not found: %s", err)
-            except Exception as err:  # noqa: BLE001 - Roku is best-effort
-                _LOGGER.warning("Failed to launch Tablo app on Roku: %s", err)
+        # When a Roku is targeted, power it on and launch the app by default.
+        turn_on = call.data.get("turn_on", True)
+        launch_app = call.data.get("launch_app", True)
 
         try:
-            await coordinator.async_set_channel(channel)
+            await coordinator.async_watch(
+                channel,
+                roku_entity_id=roku_entity_id,
+                turn_on=turn_on,
+                launch_app=launch_app,
+            )
             _LOGGER.info("Successfully set channel: %s", channel["identifier"])
         except TabloClientError as err:
             _LOGGER.error("Failed to set channel %s: %s", channel["identifier"], err)
