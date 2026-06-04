@@ -106,9 +106,12 @@ class TabloClient:
     ) -> Dict[str, Any]:
         """Make authenticated request to local device."""
         url = urljoin(self.device_url.rstrip('/') + '/', path.lstrip('/'))
+        # Tablo device endpoints expect a bare "?lh" marker on the URL (matches
+        # tablo2plex); the auth signature is still computed over the bare path.
+        request_url = f"{url}?lh"
         date = self._get_device_date()
 
-        _LOGGER.debug("Making %s request to device: %s", method, url)
+        _LOGGER.debug("Making %s request to device: %s", method, request_url)
 
         headers = {
             "Connection": "keep-alive",
@@ -158,21 +161,24 @@ class TabloClient:
         timeout = ClientTimeout(total=DEFAULT_REQUEST_TIMEOUT)
         try:
             async with session.request(
-                method, url, headers=headers, data=body_str if body_str else None, timeout=timeout
+                method, request_url, headers=headers, data=body_str if body_str else None, timeout=timeout
             ) as response:
                 _LOGGER.debug("Device response status: %s", response.status)
+                raw_text = await response.text()
                 try:
-                    result = await response.json(content_type=None)
-                except (aiohttp.ContentTypeError, json.JSONDecodeError, ValueError):
+                    result = json.loads(raw_text) if raw_text else None
+                except (json.JSONDecodeError, ValueError):
                     result = None
                 if response.status < 200 or response.status >= 300:
                     detail = ""
                     if isinstance(result, dict):
                         detail = result.get("message") or result.get("code") or ""
+                    elif raw_text:
+                        detail = raw_text.strip()[:200]
                     msg = f"{response.status} {response.reason}"
                     if detail:
                         msg = f"{msg}: {detail}"
-                    _LOGGER.error("Device request failed: %s - %s", url, msg)
+                    _LOGGER.error("Device request failed: %s - %s", request_url, msg)
                     raise TabloConnectionError(f"Device request failed: {msg}")
                 if is_debug_enabled():
                     _LOGGER.debug("Device response: %s", log_sensitive_data(result))
