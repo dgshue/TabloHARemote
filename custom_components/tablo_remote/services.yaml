@@ -1,9 +1,10 @@
 set_channel:
   name: Set channel
   description: >-
-    Tune the Tablo to a channel. If a Roku is given, it can also power on the
-    Roku/TV and launch the Tablo app first — getting you from a cold TV to
-    watching in one call. Either channel_id or channel_number must be provided.
+    Tune the Tablo to a channel. If a Roku is given, this powers on the
+    Roku/TV and deep-links the Tablo app straight to the channel (live) — going
+    from a cold TV to watching the channel in one call. Either channel_id or
+    channel_number must be provided.
   fields:
     channel_id:
       name: Channel ID

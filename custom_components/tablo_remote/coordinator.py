@@ -129,12 +129,14 @@ class TabloCoordinator(DataUpdateCoordinator[List[Dict[str, Any]]]):
         turn_on: bool = True,
         launch_app: bool = True,
     ) -> None:
-        """Get from cold to watching in one step.
+        """Get from cold to watching the channel in one step.
 
-        When a Roku is targeted: optionally power it on (which also wakes the
-        TV via HDMI-CEC), optionally launch the Tablo app, then tune the Tablo.
-        Roku steps are best-effort (logged as warnings); a tune failure is
-        raised to the caller. With no Roku, this just tunes the device.
+        With a Roku targeted and launch_app set: optionally power it on (which
+        also wakes the TV via HDMI-CEC), then deep-link the Tablo app straight
+        to the channel. The Roku app plays it live, so we skip the device-level
+        tune to avoid consuming a second tuner — the current-channel state is
+        still updated. Falls back to a plain device tune if there's no Roku,
+        app-launch is disabled, or the deep-link fails.
         """
         if roku_entity_id:
             roku = RokuHelper(self.hass)
@@ -142,10 +144,17 @@ class TabloCoordinator(DataUpdateCoordinator[List[Dict[str, Any]]]):
                 await roku.power_on(roku_entity_id)
             if launch_app:
                 try:
-                    await roku.launch_tablo_app(roku_entity_id)
-                    await roku.wait_for_app_ready(roku_entity_id)
+                    await roku.launch_tablo_channel(
+                        roku_entity_id, channel["identifier"]
+                    )
+                    self.current_channel = channel
+                    self.async_update_listeners()
+                    return
                 except RokuNotFoundError as err:
                     _LOGGER.warning("Roku device not found: %s", err)
                 except Exception as err:  # noqa: BLE001 - Roku is best-effort
-                    _LOGGER.warning("Failed to launch Tablo app on Roku: %s", err)
+                    _LOGGER.warning(
+                        "Roku deep-link failed (%s); tuning device instead", err
+                    )
+        # No Roku, app launch disabled, or deep-link failed: tune the device.
         await self.async_set_channel(channel)

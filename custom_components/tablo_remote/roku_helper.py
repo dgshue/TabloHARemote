@@ -6,6 +6,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
 from .logger import get_logger
+from .const import ROKU_LIVE_MEDIA_TYPE, TABLO_ROKU_APP_ID
 
 _LOGGER = get_logger("tablo_remote.roku_helper")
 
@@ -106,6 +107,41 @@ class RokuHelper:
             raise HomeAssistantError(
                 f"Failed to launch Tablo app on {entity_id}: {err}"
             ) from err
+
+    async def launch_tablo_channel(
+        self,
+        entity_id: str,
+        content_id: str,
+        media_type: str = ROKU_LIVE_MEDIA_TYPE,
+    ) -> bool:
+        """Deep-link the Tablo app on a Roku straight to a live channel.
+
+        Uses media_player.play_media with the Tablo Roku app id and the
+        channel's Tablo identifier as the deep-link content_id. This both
+        launches the app and plays the channel (verified to work even while
+        the app is already running).
+        """
+        _LOGGER.info(
+            "Deep-linking Tablo channel %s on Roku %s", content_id, entity_id
+        )
+        device_entity = await self.find_roku_device(entity_id)
+        if not device_entity:
+            _LOGGER.error("Roku device %s not found", entity_id)
+            raise RokuNotFoundError(f"Roku device {entity_id} not found")
+
+        await self.hass.services.async_call(
+            "media_player",
+            "play_media",
+            {
+                "entity_id": entity_id,
+                "media_content_type": "app",
+                "media_content_id": TABLO_ROKU_APP_ID,
+                "extra": {"content_id": content_id, "media_type": media_type},
+            },
+            blocking=True,
+        )
+        _LOGGER.info("Deep-linked %s to channel %s", entity_id, content_id)
+        return True
 
     async def wait_for_app_ready(self, entity_id: str, timeout: int = 10) -> bool:
         """Wait for Roku app to be ready (simplified implementation)."""

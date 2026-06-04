@@ -27,6 +27,11 @@ CONTENT_TYPE_FORM: Final = "application/x-www-form-urlencoded"
 DEVICE_KEY: Final = "ljpg6ZkwShVv8aI12E2LP55Ep8vq1uYDPvX0DdTB"
 HASH_KEY: Final = "6l8jU5N43cEilqItmT3U2M2PFM3qPziilXqau9ys"
 
+# Tablo "Tablo TV" app on Roku (verified via active_app_id). Used for
+# deep-linking straight to a live channel via media_player.play_media.
+TABLO_ROKU_APP_ID: Final = "734366"
+ROKU_LIVE_MEDIA_TYPE: Final = "live"
+
 # Defaults
 DEFAULT_TIMEOUT: Final = 30
 DEFAULT_REQUEST_TIMEOUT: Final = 10
